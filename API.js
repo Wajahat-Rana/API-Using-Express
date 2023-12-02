@@ -1,68 +1,97 @@
 const express = require("express");
-
+const mongoose = require("mongoose");
 const app = express();
+app.use(express.json());
 
-let students = [
-  { id: 1, name: "Wajahat"},
-  { id: 2, name: "Ayesha"},
-  { id: 3, name: "Noman"},
-  { id: 4, name: "Eman"},
-  { id: 5, name: "Muneeb"}
-];
+mongoose.connect("mongodb://127.0.0.1:27017/WebDevAssignment");
 
+studentDB = mongoose.connection;
+studentDB.once("open", () => {
+  console.log("Connected to MongoDB");
+});
+studentDB.on("error", (err) => {
+  console.error("MongoDB connection error:", err);
+});
+
+const studentSchema = new mongoose.Schema({
+  regId: String,
+  name: String,
+  gender: String,
+  department: String,
+});
+
+const studentModel = mongoose.model("studentModel", studentSchema);
+
+//GET Request Using /
 app.get("/", (req, res) => {
   res.send("Welcome To My API");
 });
 
-//GET Request
-app.get("/api/students", (req, res) => {
+//GET Request To Fetch All Students
+app.get("/api/students", async (req, res) => {
+  const students = await studentModel.find();
+  if (!students) {
+    return res.status(404).send("Not Found");
+  }
   res.status(200).send(students);
 });
 
-//GET BY ID Request
-app.get("/api/students/:id", (req, res) => {
-  let check = false;
-  students.forEach((student) => {
-    if (student.id == req.params.id) {
-      res.status(200).send(student);
-      students.forEach(student => {
-        console.log(student.name)
-    });
-      check = true;
-    }
-  });
-  if (!check) {
-    res.status(400).send("Student Data Not Found");
+//GET Request BY Student RegID
+app.get("/api/students/findStudent", async (req, res) => {
+  const student = await studentModel.findOne({ regId: req.body.regId });
+  if (!student) {
+    return res.status(404).send("Student Not Found In Database");
   }
+  res.status(200).send(student);
 });
 
 //POST Request
-app.post("/api/students/:id/:name",(req, res) => {
-
-
-console.log(req.body.id)
-
-
-  let newStudent = { id: req.params.id, name: req.params.name };
-  students.push(newStudent);
-  res.status(200).send("Successfully Added");
+app.post("/api/students/addStudent", (req, res) => {
+  if (!req.body) {
+    return res
+      .status(400)
+      .send("Bad Request: Request body is empty or undefined");
+  }
+  const student1 = new studentModel({
+    regId: req.body.regId,
+    name: req.body.name,
+    gender: req.body.gender,
+    department: req.body.department,
+  });
+  student1
+    .save()
+    .then(() => {
+      res.status(200).send("Successfully Added \n" + student1);
+    })
+    .catch((err) => {
+      res.status(500).send("Error: " + err.message);
+    });
 });
 
 //PUT Request
-app.put("/api/students/:id/:name",(req, res) => {
-    students.forEach((student) => {
-        if (student.id == req.params.id) {
-          student.name = req.params.name;
-        }
-      });
-    res.status(200).send("Successfully Updated");
-  });
-
-//DELETE Request
-  app.delete("/api/students/:id", (req, res) => {
-    let idToRemove = req.params.id;
-    students = students.filter(student => student.id != idToRemove);
-    res.status(200).send('Successfully Deleted');
+app.put("/api/students/updateStudent", async (req, res) => {
+  const updated = await studentModel.findOneAndUpdate(
+    { regId: req.body.regId },
+    { department: req.body.department }
+  );
+  if (!updated) {
+    res.status(304).send("Not Updated!!!!");
+  }
+  res.status(200).send("Successfully Updated" + updated);
 });
 
-app.listen(3000);
+//DELETE Request Using RegID
+app.delete("/api/students/deleteStudent", async (req, res) => {
+  await studentModel.deleteOne({ regId: req.body.regId });
+  res.status(200).send("Successfully Deleted.");
+});
+
+//DELETE Request For All Students
+app.delete("/api/students/deleteAll", async (req, res) => {
+  await studentModel.deleteMany();
+  res.status(200).send("Successfully Deleted All Students");
+});
+
+app.listen(3000, () => {
+  console.log("Listening At Port 3000");
+});
